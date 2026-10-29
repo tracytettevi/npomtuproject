@@ -2,7 +2,7 @@
 
 A small end-to-end demonstration for synthetic SMS campaign response analytics. It uses SQLite and Python's standard library, so no package installation is required.
 
-For the assignment mapping, model explanation, monitoring approach, Snwolley safeguards, and reviewer walk-through, see [SUBMISSION_NOTES.md](SUBMISSION_NOTES.md). The relational schema and system design are explained in [ARCHITECTURE.md](ARCHITECTURE.md). Add the published repository URL to [GITHUB_REPOSITORY_LINK.md](GITHUB_REPOSITORY_LINK.md) before uploading that link document to the application portal.
+For the assignment mapping, model explanation, monitoring approach, Snwolley safeguards, and reviewer walk-through, see [SUBMISSION_NOTES.md](SUBMISSION_NOTES.md). The relational schema and system design are explained in [ARCHITECTURE.md](ARCHITECTURE.md). The public repository URL is recorded in [GITHUB_REPOSITORY_LINK.md](GITHUB_REPOSITORY_LINK.md) for the application portal.
 
 ## Run it from PyCharm
 

@@ -2,7 +2,6 @@
 
 **Project:** Campaign Analytics Demo — Npontu Intelligent Systems Services assignment
 
-**Repository URL:** Add the GitHub repository URL here after creating the repository and pushing the project files.
+**Public repository:** https://github.com/tracytettevi/npomtuproject
 
-This document is intended to accompany the code upload in the application portal. Before submission, replace the line above with the working repository URL and confirm the reviewer can access it. Ensure `.env` and the API key are not included in the repository.
-
+The repository contains the project source, synthetic SQLite data, SQL analysis, model walkthrough, dashboard, and assignment notes. The local `.env` file containing the testing API key is excluded from Git; only `.env.example` with a placeholder is included.

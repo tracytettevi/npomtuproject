@@ -55,6 +55,6 @@ See `ARCHITECTURE.md` for the component diagram, entity relationships, and a con
 - Confirm `.env` and its secret value are not staged or uploaded. `.gitignore` excludes `.env` and `.venv/`.
 - Keep `.env.example` as the safe setup template; never replace its placeholder with a real key.
 - Include source files, schema, SQL, README, assignment notes, and relevant synthetic output artifacts.
-- Add the actual public or reviewer-accessible GitHub repository URL to `GITHUB_REPOSITORY_LINK.md` after the repository has been created and pushed.
-- Do not claim the repository is published until the uploaded files are visible at that URL.
+- The public GitHub repository is `https://github.com/tracytettevi/npomtuproject`; verify the link opens before portal submission.
+- The repository was published with the local `.env` file excluded; `.env.example` contains only a placeholder.
 
