@@ -1,0 +1,30 @@
+#  Executive Brief - Retail SMS Campaign Analytics (Synthetic Demo)
+
+Scope: 1,200 customers | 24 campaigns | 6,643 messages sent, 6,232 delivered (93.8% delivery) | 895 responses (14.36%) | 226 conversions (3.63%).
+
+
+## Observations
+
+1. Engagement is concentrated in established segments - descriptively, not causally.
+Loyal customers responded at 18.12% (423/2,335) and High Value at 16.55% (148/894) with the highest conversion rate at 5.48%. At Risk trailed at 9.28% response and 2.48% conversion - less than half of High Value's conversion. The response-rate spread across segments (~8.8 percentage points) is more than three times the spread across offer types (~2.6 points), suggesting *who* you message matters more in this data than *what* you offer.
+
+2. Offer-type differences are modest and may not be meaningful.
+Discount leads at 15.54% response / 3.96% conversion, but Loyalty Points (14.11%) and Free Delivery (12.91%) conversions (3.38% vs 3.39%) are practically indistinguishable. Without significance testing or a control group, the figures do not support a conclusion that any offer outperforms another - these gaps could be noise.
+
+3. The predictive model is weak. 
+Held-out ROC AUC of 0.539 is barely above 0.5 - essentially coin-flip territory. At the 0.15 threshold, precision is 0.178, meaning roughly 4 in 5 messages the model flags as "likely responders" would not actually respond. The recall of 0.569 and F1 of 0.271 confirm poor practical utility. This model is in no condition to drive decisions.
+
+
+## Recommended Next Steps
+
+1. Treat the segment gaps as hypotheses, not facts. Run properly controlled A/B tests with holdout groups before shifting budget toward Loyal/High Value - the current data can't tell you *why* those segments responded more.
+2. Park the model - do not deploy it for automated targeting. Instead, enrich the feature set (offer history, message timing, purchase recency/frequency) and re-evaluate before any scoring use.
+3. Diagnose the response-to-purchase drop-off. Only 226 of 895 responses converted (25.3%), with New customers converting at just 2.62% - worth investigating what happens between reply and checkout.
+
+
+## Limitation
+
+These are descriptive, synthetic data with no control groups and no offer-by-segment cross-tabulation - so we cannot isolate what drives any difference, nor say how each offer performed within each segment. Every figure above describes what happened, not why.
+
+
+Bottom line: the campaign delivered well and the segment patterns are worth *testing* - but nobody should let that model near your targeting until it earns its keep. 

@@ -1,0 +1,107 @@
+{
+  "model": "L2-regularized logistic regression",
+  "prediction_target": "response among delivered messages",
+  "target_column": "responded",
+  "feature_names": [
+    "tenure_months",
+    "preferred_contact_hour",
+    "send_hour",
+    "hour_difference",
+    "within_preferred_window",
+    "segment=High Value",
+    "segment=Loyal",
+    "segment=New",
+    "region=Central",
+    "region=Greater Accra",
+    "region=Northern",
+    "region=Unknown",
+    "region=Western",
+    "offer_type=Free Delivery",
+    "offer_type=Loyalty Points"
+  ],
+  "split_method": "chronological by campaign send date",
+  "train_through_date": "2025-09-10",
+  "test_from_date": "2025-09-24",
+  "decision_threshold_selection": "threshold with highest training-set F1, selected without using test outcomes",
+  "training_metrics": {
+    "records": 4870,
+    "positive_rate": 0.14229979466119097,
+    "decision_threshold": 0.15,
+    "accuracy": 0.6080082135523613,
+    "precision": 0.19168356997971603,
+    "recall": 0.5454545454545454,
+    "f1_score": 0.28367729831144467,
+    "roc_auc": 0.6026139157573202,
+    "confusion_matrix": {
+      "true_negative": 2583,
+      "false_positive": 1594,
+      "false_negative": 315,
+      "true_positive": 378
+    }
+  },
+  "test_metrics": {
+    "records": 1362,
+    "positive_rate": 0.14831130690161526,
+    "decision_threshold": 0.15,
+    "accuracy": 0.5462555066079295,
+    "precision": 0.1780185758513932,
+    "recall": 0.5693069306930693,
+    "f1_score": 0.27122641509433965,
+    "roc_auc": 0.5393628371457836,
+    "confusion_matrix": {
+      "true_negative": 629,
+      "false_positive": 531,
+      "false_negative": 87,
+      "true_positive": 115
+    }
+  },
+  "baseline_test_accuracy": 0.8516886930983847,
+  "top_model_drivers": [
+    {
+      "feature": "segment=Loyal",
+      "coefficient": 0.2228,
+      "direction": "positive association"
+    },
+    {
+      "feature": "segment=High Value",
+      "coefficient": 0.1549,
+      "direction": "positive association"
+    },
+    {
+      "feature": "within_preferred_window",
+      "coefficient": 0.0922,
+      "direction": "positive association"
+    },
+    {
+      "feature": "offer_type=Free Delivery",
+      "coefficient": -0.0525,
+      "direction": "negative association"
+    },
+    {
+      "feature": "send_hour",
+      "coefficient": -0.0444,
+      "direction": "negative association"
+    },
+    {
+      "feature": "region=Western",
+      "coefficient": 0.0435,
+      "direction": "positive association"
+    },
+    {
+      "feature": "hour_difference",
+      "coefficient": -0.037,
+      "direction": "negative association"
+    },
+    {
+      "feature": "region=Greater Accra",
+      "coefficient": -0.023,
+      "direction": "negative association"
+    }
+  ],
+  "feature_driver_note": "Coefficients are standardized associations in this fitted model, relative to the encoded reference categories; they are not causal effects.",
+  "limitations": [
+    "The data is synthetic and does not establish real-world performance.",
+    "This predicts response among delivered messages, not delivery or conversion.",
+    "Deployment needs real historical data, monitoring, and business review."
+  ]
+}
