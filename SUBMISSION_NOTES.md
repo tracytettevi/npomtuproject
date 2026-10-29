@@ -2,25 +2,25 @@
 
 ## Project summary
 
-This submission is a local analytics demonstration for a Ghanaian retail business that wants to understand SMS campaign performance and explore which opted-in customers may respond. The implemented journey starts with a business workspace, creates reproducible synthetic data, runs SQL analysis, evaluates a response model, requests a Snwolley summary, and builds a dashboard.
+This submission is a local business analytics prototype with two selectable synthetic scenarios: retail SMS campaign performance (response or conversion) and subscription customer retention (churn). The selected scenario controls data analysis, SQL, model training, the Snwolley prompt, and dashboard content.
 
-The retail SMS use case is the selected demonstration scenario. The workspace lets a user choose response or conversion as the outcome, and the same model pipeline uses the selected target. Data ingestion, SQL analysis, and features are still specific to retail SMS; this is not yet a multi-business analytics platform.
+The workspace selector offers both scenarios. Each scenario has its own dataset adapter and business measures while sharing the ordered workflow, SQLite store, model evaluation approach, and report location. The platform does not yet accept arbitrary external datasets; the two implemented adapters are the supported scope of this prototype.
 
 ## How the work maps to the assignment
 
 | Area | Evidence in this project | Scope note |
 | --- | --- | --- |
-| Business context and workflow | `app.py`, `outputs/workspace.json` | Local workspace and ordered workflow for one implemented use case. |
-| Data model and synthetic data | `schema.sql`, `data.py`, `campaigns.sqlite` | Deterministic generator with 1,200 synthetic customers, 24 campaigns, and message records. Running `data.py` recreates the database. |
-| SQL analysis | `sqlanalysisqueries.sql`, `run_sql.py` | Quality checks, duplicate-key review, campaign/segment aggregates, a CTE, and a window ranking. |
-| Machine learning | `model.py`, `notebooks/model_walkthrough.ipynb`, `outputs/model_report.json`, `outputs/scored_messages.csv` | Selectable response/conversion target, logistic regression, training-only threshold selection, chronological holdout, baseline comparison, metrics, feature associations, and scored held-out messages. |
-| Snwolley integration | `snwolley_agent.py`, `outputs/ai_insights.md` | Sends aggregate synthetic analytics and model metrics; reads the key from local environment configuration. |
-| Business dashboard | `dashboard.py`, `outputs/dashboard.html` | Campaign, segment, offer, model, and Snwolley results in one report. |
+| Business context and workflow | `app.py`, `outputs/workspace.json` | Selectable campaign or retention scenario with ordered workflow steps. |
+| Data model and synthetic data | `schema.sql`, `data.py`, `campaigns.sqlite` | Reproducible campaign records plus 3,600 synthetic monthly subscription snapshots. Running `data.py` regenerates both. |
+| SQL analysis | `sqlanalysisqueries.sql`, `retention_analysis.sql`, `run_sql.py` | Scenario-specific quality checks, joins, aggregates, CTE analysis, and window ranking. |
+| Machine learning | `model.py`, `retention_model.py`, `notebooks/model_walkthrough.ipynb`, `outputs/model_report.json` | Campaign response/conversion or subscription churn; logistic regression, chronological holdout, training-only threshold selection, baseline, metrics, feature associations, and scored holdout records. |
+| Snwolley integration | `snwolley_agent.py`, `outputs/ai_insights.md` | Scenario-specific aggregate synthetic analytics and model metrics; key comes from local environment configuration. |
+| Business dashboard | `dashboard.py`, `outputs/dashboard.html` | Scenario-specific campaign or retention measures, model results, and Snwolley brief. |
 | Setup and limitations | `README.md`, this document | Local run steps, scope boundaries, security notes, and production considerations. |
 
 ## Model explanation
 
-The workspace prediction goal is either a response or conversion among delivered SMS messages. The model uses customer and campaign attributes available before sending, including segment, region, tenure, preferred contact hour, offer type, send hour, and derived timing features. It does not use either outcome or delivery status as an input. The model is a regularized logistic regression implemented in Python.
+The campaign scenario predicts response or conversion among delivered SMS messages using customer and campaign attributes available before sending. The retention scenario predicts account churn using segment, region, plan type, tenure, monthly charge, support ticket count, and inactivity days. Both use regularized logistic regression implemented in Python and chronological holdout evaluation.
 
 Campaign dates define the chronological split: the model trains through 2025-09-10 and is evaluated on later campaigns beginning 2025-09-24. The decision threshold (0.15 for the recorded run) is selected from training data, not from the held-out test outcomes. The report compares the model to a prior-probability baseline.
 
@@ -46,8 +46,8 @@ See `ARCHITECTURE.md` for the component diagram, entity relationships, and a con
 
 1. Install/open the project in PyCharm and follow the setup in `README.md`.
 2. Start `app.py` and open `http://127.0.0.1:8000`.
-3. Create a workspace and follow the numbered workflow one step at a time: generate data, run SQL analysis, train/evaluate the model, generate the Snwolley brief, then build the dashboard.
-4. In the dashboard, review Part 4 model results and Part 5 Snwolley insights. Point out the low held-out ROC AUC and explain why this is not ready for targeting.
+3. Create a workspace, select a business scenario and prediction goal, then follow the numbered workflow in order.
+4. Review the scenario-specific dashboard, Parts 4 and 5, model metrics, and source aggregates. Explain why held-out performance on synthetic data is not ready for operational customer decisions.
 5. Review the generated artifacts in `outputs/`, the notebook, and the scope/monitoring notes in this file.
 
 ## Before uploading

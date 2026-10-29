@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import math
 import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
@@ -86,6 +87,39 @@ def create_database(db_path: Path = DB_PATH, seed: int = 42) -> Path:
 
     connection.executemany(
         "INSERT INTO messages VALUES (?, ?, ?, ?, ?, ?, ?)", messages
+    )
+
+    # A second, distinct business scenario demonstrates the same workflow for
+    # subscription retention rather than campaign engagement.
+    retention_rows = []
+    account_id = 1
+    for month_index in range(18):
+        snapshot = date(2025 + month_index // 12, month_index % 12 + 1, 1)
+        for _ in range(200):
+            segment = rng.choices(SEGMENTS, weights=(30, 35, 20, 15))[0]
+            region = None if account_id % 83 == 0 else rng.choice(REGIONS)
+            plan_type = rng.choice(("Basic", "Standard", "Premium"))
+            tenure = rng.randint(1, 72)
+            monthly_charge = round(rng.uniform(25, 240), 2)
+            support_tickets = rng.randint(0, 8)
+            inactive_days = rng.randint(0, 60)
+            # Generate a plausible synthetic signal, with overlap/noise so the
+            # prediction remains a demonstration rather than a perfect rule.
+            logit = (-2.25 + 0.045 * inactive_days + 0.18 * support_tickets
+                     - 0.018 * tenure + (0.35 if plan_type == "Basic" else 0)
+                     + rng.uniform(-1.35, 1.35))
+            churn_probability = 1 / (1 + math.exp(-logit))
+            churned = int(rng.random() < churn_probability)
+            retention_rows.append((account_id, 1, snapshot.isoformat(), segment, region,
+                                   plan_type, tenure, monthly_charge, support_tickets,
+                                   inactive_days, churned))
+            account_id += 1
+    connection.executemany(
+        """INSERT INTO retention_accounts
+           (account_id, business_id, snapshot_date, segment, region, plan_type,
+            tenure_months, monthly_charge, support_tickets, inactive_days, churned)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        retention_rows,
     )
     connection.commit()
     connection.close()

@@ -19,6 +19,23 @@ def fetch_all(connection: sqlite3.Connection, query: str) -> list[dict]:
     return [dict(row) for row in connection.execute(query)]
 
 
+def load_scenario_insights(use_case: str) -> str:
+    """Return only the Snwolley brief generated for this selected scenario."""
+    scenario_path = OUTPUT_DIR / f"ai_insights_{use_case}.txt"
+    if scenario_path.is_file():
+        return scenario_path.read_text(encoding="utf-8").strip()
+    marker = OUTPUT_DIR / "ai_insights_use_case.txt"
+    generic_path = OUTPUT_DIR / "ai_insights.txt"
+    if not generic_path.is_file():
+        return ""
+    if marker.is_file():
+        if marker.read_text(encoding="utf-8").strip() != use_case:
+            return ""
+    elif use_case != "campaigns":
+        return ""
+    return generic_path.read_text(encoding="utf-8").strip()
+
+
 def load_dashboard_data() -> dict:
     if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
         raise FileNotFoundError("campaigns.sqlite is missing or empty. Run data.py first.")
@@ -65,11 +82,72 @@ def load_dashboard_data() -> dict:
             GROUP BY c.offer_type ORDER BY response_rate DESC""")
     report_path = OUTPUT_DIR / "model_report.json"
     model = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else None
-    insight_path = OUTPUT_DIR / "ai_insights.txt"
-    ai_insights = insight_path.read_text(encoding="utf-8").strip() if insight_path.exists() else ""
+    ai_insights = load_scenario_insights("campaigns")
     return {"totals": totals, "campaigns": campaigns, "segments": segments,
             "offers": offers, "model": model, "ai_insights": ai_insights,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+
+
+def load_retention_dashboard_data() -> dict:
+    """Load retention-specific aggregates for the selected second scenario."""
+    if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
+        raise FileNotFoundError("campaigns.sqlite is missing or empty. Run data.py first.")
+    with sqlite3.connect(DB_PATH) as connection:
+        connection.row_factory = sqlite3.Row
+        totals = dict(connection.execute("""SELECT COUNT(*) AS accounts,
+            SUM(churned) AS churned, AVG(churned * 1.0) AS churn_rate,
+            AVG(monthly_charge) AS average_monthly_charge,
+            AVG(inactive_days) AS average_inactive_days
+            FROM retention_accounts""").fetchone())
+        segments = fetch_all(connection, """SELECT segment, COUNT(*) AS accounts,
+            SUM(churned) AS churned, AVG(churned * 1.0) AS churn_rate,
+            AVG(inactive_days) AS average_inactive_days
+            FROM retention_accounts GROUP BY segment ORDER BY churn_rate DESC""")
+        plans = fetch_all(connection, """SELECT plan_type, COUNT(*) AS accounts,
+            SUM(churned) AS churned, AVG(churned * 1.0) AS churn_rate,
+            AVG(monthly_charge) AS average_monthly_charge
+            FROM retention_accounts GROUP BY plan_type ORDER BY churn_rate DESC""")
+        monthly = fetch_all(connection, """SELECT substr(snapshot_date,1,7) AS month,
+            COUNT(*) AS accounts, SUM(churned) AS churned,
+            AVG(churned * 1.0) AS churn_rate
+            FROM retention_accounts GROUP BY substr(snapshot_date,1,7) ORDER BY month""")
+    report_path = OUTPUT_DIR / "model_report.json"
+    model = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else None
+    ai_insights = load_scenario_insights("retention")
+    return {"totals": totals, "segments": segments, "plans": plans,
+            "monthly": monthly, "model": model, "ai_insights": ai_insights,
+            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+
+
+def build_retention_dashboard(data: dict) -> str:
+    """Build a dashboard for subscription churn without campaign-specific labels."""
+    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    model = data.get("model") or {}
+    if model:
+        metrics = model["test_metrics"]
+        drivers = "".join(f"<li>{html.escape(item['feature'])}: {html.escape(item['direction'])} "
+                          f"(coefficient {item['coefficient']:+.4f})</li>"
+                          for item in model.get("top_model_drivers", [])[:5])
+        ml = (f"<div class='metrics'><div><span>Held-out ROC AUC</span><b>{metrics['roc_auc']:.3f}</b></div>"
+              f"<div><span>Precision</span><b>{metrics['precision']:.1%}</b></div>"
+              f"<div><span>Recall</span><b>{metrics['recall']:.1%}</b></div>"
+              f"<div><span>F1</span><b>{metrics['f1_score']:.3f}</b></div></div>"
+              f"<p>Target: customer churn · {metrics['records']:,} later snapshots · train through "
+              f"{html.escape(model['train_through_date'])} · test from {html.escape(model['test_from_date'])}</p>"
+              f"<p class='note'>ROC AUC near 0.5 indicates weak ranking. This is synthetic data and must not drive retention decisions.</p>"
+              f"<h4>Model feature associations</h4><ul>{drivers}</ul>")
+    else:
+        ml = "<p class='note'>No model report yet. Run the model workflow step first.</p>"
+    ai = (f"<div class='ai'>{html.escape(data['ai_insights'])}</div>" if data.get("ai_insights")
+          else "<p class='note'>No Snwolley brief saved for this scenario yet.</p>")
+    return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Customer Retention Analytics</title><style>
+*{{box-sizing:border-box}}body{{margin:0;background:#f3f7fa;color:#172b3a;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}header{{background:#122d40;color:#fff;padding:30px max(22px,calc((100vw - 1050px)/2))}}header p{{color:#c4d2dc;margin:4px 0}}main{{max-width:1050px;margin:24px auto;padding:0 20px 40px}}.metrics,.grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}.grid{{grid-template-columns:1fr 1fr;margin-top:16px}}.card{{background:white;border:1px solid #e1e9ef;border-radius:11px;padding:18px;margin:12px 0}}.metrics div{{background:#fff;border:1px solid #e1e9ef;border-radius:10px;padding:15px}}span{{display:block;color:#64798a;font-size:12px}}b{{font-size:24px}}.bar{{margin:14px 0}}.track{{background:#e9eff2;height:11px;border-radius:9px;overflow:hidden}}.fill{{height:100%;background:#087f8c}}.note{{background:#fff6e8;border:1px solid #f0d9ad;padding:12px;border-radius:8px}}.muted{{color:#64798a;font-size:12px}}.ai{{white-space:pre-wrap;line-height:1.6}}@media(max-width:650px){{.metrics,.grid{{grid-template-columns:1fr 1fr}}}}
+</style></head><body><header><div>INTELLIGENT SYSTEMS SERVICES · ASSIGNMENT</div><h1>Customer Retention Analytics</h1><p>Synthetic subscription churn patterns, model evaluation, and Snwolley insight</p></header><main>
+<section class="metrics" id="summary"></section><div class="grid"><section class="card"><h2>Churn by customer segment</h2><div id="segments"></div></section><section class="card"><h2>Churn by subscription plan</h2><div id="plans"></div></section></div>
+<section class="card" id="part-4"><h2>Part 4 · Machine learning results</h2>{ml}</section><section class="card" id="part-5"><h2>Part 5 · Snwolley Agent insight brief</h2>{ai}<p class="muted">AI output is based on aggregate synthetic results and requires human review.</p></section>
+<section class="card"><h2>Monthly churn summary</h2><div id="monthly"></div><p class="muted">Dashboard generated {html.escape(data['generated_at'])}. All records are synthetic.</p></section></main>
+<script>const D={payload},pct=x=>(Number(x||0)*100).toFixed(1)+'%';const T=D.totals;document.getElementById('summary').innerHTML=[['Subscription records',T.accounts],['Churned accounts',T.churned],['Overall churn rate',pct(T.churn_rate)],['Average monthly charge',Number(T.average_monthly_charge).toFixed(2)]].map(x=>`<div><span>${{x[0]}}</span><b>${{x[1]}}</b></div>`).join('');function bars(id,items,label){{document.getElementById(id).innerHTML=items.map(x=>`<div class="bar"><b>${{x[label]}}</b> · ${{pct(x.churn_rate)}}<div class="track"><div class="fill" style="width:${{Math.max(1,Number(x.churn_rate)*100)}}%"></div></div><span>${{x.churned}} churned of ${{x.accounts}} records</span></div>`).join('')}}bars('segments',D.segments,'segment');bars('plans',D.plans,'plan_type');document.getElementById('monthly').innerHTML='<table style="width:100%;text-align:left"><tr><th>Month</th><th>Records</th><th>Churned</th><th>Churn rate</th></tr>'+D.monthly.map(x=>`<tr><td>${{x.month}}</td><td>${{x.accounts}}</td><td>${{x.churned}}</td><td>${{pct(x.churn_rate)}}</td></tr>`).join('')+'</table>';</script></body></html>'''
 
 
 def build_dashboard(data: dict) -> str:
@@ -127,7 +205,13 @@ document.getElementById('campaign-table').innerHTML=cs.map(c=>`<tr><td>${{c.camp
 
 def main() -> None:
     OUTPUT_DIR.mkdir(exist_ok=True)
-    OUTPUT_PATH.write_text(build_dashboard(load_dashboard_data()), encoding="utf-8")
+    workspace_path = OUTPUT_DIR / "workspace.json"
+    workspace = json.loads(workspace_path.read_text(encoding="utf-8")) if workspace_path.exists() else {}
+    if workspace.get("use_case") == "retention":
+        content = build_retention_dashboard(load_retention_dashboard_data())
+    else:
+        content = build_dashboard(load_dashboard_data())
+    OUTPUT_PATH.write_text(content, encoding="utf-8")
     print(f"Dashboard created: {OUTPUT_PATH}")
 
 

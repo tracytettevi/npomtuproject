@@ -23,9 +23,9 @@ PORT = 8000
 CSRF_TOKEN = secrets.token_urlsafe(24)
 
 PIPELINE = {
-    "data": ("Generate synthetic dataset", "data.py", "Recreates the sample SQLite database."),
-    "sql": ("Run SQL checks and analysis", "run_sql.py", "Quality checks, campaign and segment findings."),
-    "model": ("Train and evaluate selected campaign model", "model.py", "Predict the workspace's selected response or conversion outcome."),
+    "data": ("Generate synthetic datasets", "data.py", "Recreates the synthetic databases for both scenarios."),
+    "sql": ("Run SQL checks and analysis", "run_sql.py", "Quality checks and findings for the selected scenario."),
+    "model": ("Train and evaluate selected model", "model.py", "Predicts the selected campaign outcome or subscription churn."),
     "ai": ("Generate Snwolley insight brief", "snwolley_agent.py", "Sends aggregate synthetic results to Snwolley."),
     "dashboard": ("Build business dashboard", "dashboard.py", "Refreshes the HTML dashboard from available outputs."),
 }
@@ -67,6 +67,26 @@ def next_action(progress: dict[str, bool]) -> str | None:
 
 def load_snwolley_brief() -> str:
     """Read the latest Snwolley brief for display in the workspace."""
+    workspace = load_workspace() or {}
+    selected = workspace.get("use_case", "campaigns")
+    scenario_path = OUTPUT_DIR / f"ai_insights_{selected}.txt"
+    if scenario_path.is_file():
+        try:
+            content = scenario_path.read_text(encoding="utf-8").strip()
+            if content:
+                return content
+        except OSError:
+            return ""
+    marker = OUTPUT_DIR / "ai_insights_use_case.txt"
+    if marker.exists():
+        try:
+            if marker.read_text(encoding="utf-8").strip() != selected:
+                return ""
+        except OSError:
+            return ""
+    elif selected != "campaigns":
+        # Legacy briefs were campaign-specific and must never appear as churn advice.
+        return ""
     for filename in ("ai_insights.txt", "ai_insights.md"):
         path = OUTPUT_DIR / filename
         if path.is_file():
@@ -90,24 +110,29 @@ def page(message: str = "") -> bytes:
         '<p class="muted">No brief yet. Run “Generate Snwolley insight brief” to show it here.</p></section>'
     )
     if workspace:
-        target_label = "message conversion" if workspace.get("model_target") == "converted" else "message response"
+        is_retention = workspace.get("use_case") == "retention"
+        target_label = ("customer churn" if is_retention else
+                        "message conversion" if workspace.get("model_target") == "converted" else "message response")
+        use_case_label = "Subscription retention" if is_retention else "SMS campaign analytics"
         workspace_card = f"""<section class="card profile"><div><div class="eyebrow">ACTIVE WORKSPACE</div>
           <h2>{esc(workspace['business_name'])}</h2><p>{esc(workspace['industry'])} · Owner: {esc(workspace['owner'])}</p>
-          <p><b>Business question:</b> {esc(workspace['business_question'])}</p><p><b>Prediction goal:</b> {esc(target_label)}</p></div>
+          <p><b>Business scenario:</b> {esc(use_case_label)}</p><p><b>Business question:</b> {esc(workspace['business_question'])}</p><p><b>Prediction goal:</b> {esc(target_label)}</p></div>
           <form method="post" action="/reset-workspace"><input type="hidden" name="csrf" value="{CSRF_TOKEN}"><button class="secondary" type="submit">Edit workspace</button></form></section>"""
         workspace_form = ""
     else:
         workspace_card = ""
         workspace_form = f"""<section class="card"><div class="eyebrow">WORKSPACE ONBOARDING</div><h2>Set up your analysis workspace</h2>
-          <p class="muted">This demo runs a synthetic Ghana retail SMS campaign workflow. Enter a business context to personalize its workspace.</p>
+          <p class="muted">Choose one of the implemented synthetic business scenarios, then run its complete analytics workflow.</p>
           <form method="post" action="/workspace"><input type="hidden" name="csrf" value="{CSRF_TOKEN}">
           <label>Business or team name<input name="business_name" required maxlength="80" placeholder="e.g. Acme Retail"></label>
           <div class="form-row"><label>Industry<input name="industry" required maxlength="60" placeholder="e.g. Retail"></label>
           <label>Workspace owner<input name="owner" required maxlength="60" placeholder="Your name"></label></div>
-          <label>Business question<input name="business_question" required maxlength="180" value="Which SMS campaigns and customer segments show stronger response or conversion?"></label>
-          <label>Prediction goal<select name="model_target"><option value="responded">Predict message response</option><option value="converted">Predict conversion</option></select></label>
-          <p class="muted">Both goals use the same campaign data and workflow; choose the outcome you want the model to predict.</p>
-          <button type="submit">Create workspace</button></form></section>"""
+          <label>Business scenario<select name="use_case"><option value="campaigns">SMS campaign performance and response</option><option value="retention">Subscription customer retention and churn</option></select></label>
+          <label>Business question<input id="business-question" name="business_question" required maxlength="180" value="Which SMS campaigns and customer segments show stronger response or conversion?"></label>
+          <label id="campaign-target">Campaign prediction goal<select name="model_target"><option value="responded">Predict message response</option><option value="converted">Predict conversion</option></select></label>
+          <p class="muted" id="scenario-help">Choose which campaign outcome the model should predict.</p>
+          <button type="submit">Create workspace</button></form>
+          <script>const scenario=document.querySelector('[name=use_case]'),target=document.getElementById('campaign-target'),question=document.getElementById('business-question'),help=document.getElementById('scenario-help');scenario.addEventListener('change',()=>{{const retention=scenario.value==='retention';target.hidden=retention;help.textContent=retention?'The retention model predicts subscription churn from account history.':'Choose which campaign outcome the model should predict.';question.value=retention?'Which subscription accounts show higher churn risk, and what patterns should the business investigate?':'Which SMS campaigns and customer segments show stronger response or conversion?';}});</script></section>"""
 
     actions = []
     progress = load_progress()
@@ -126,7 +151,7 @@ def page(message: str = "") -> bytes:
 
     result_section = f'<section class="card result"><div class="eyebrow">LATEST ACTION</div><pre>{esc(message)}</pre></section>' if message else ""
     body = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-      <title>Campaign Analytics Workspace</title><style>
+      <title>Business Analytics Workspace</title><style>
       :root{{--ink:#183247;--muted:#64798a;--line:#e1e9ef;--bg:#f3f7fa;--teal:#087f8c;--white:#fff}}
       *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}
       header{{background:#122d40;color:white;padding:28px max(22px,calc((100vw - 1080px)/2))}}header .eyebrow{{color:#8ed2d4}}
@@ -136,8 +161,8 @@ def page(message: str = "") -> bytes:
       button{{background:var(--teal);color:white;border:0;border-radius:7px;padding:10px 14px;font:inherit;font-weight:700;cursor:pointer}}button:hover{{filter:brightness(.94)}}.button-link{{display:inline-block;background:var(--teal);color:white;text-decoration:none;border-radius:7px;padding:10px 14px;font-weight:700;margin:4px 8px 4px 0}}.button-link:hover{{filter:brightness(.94)}}button:disabled{{background:#9aabb7;cursor:not-allowed}}button.secondary{{background:#e8eff4;color:var(--ink)}}
       .grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}.step{{padding:18px}}.step-top{{display:flex;justify-content:space-between;align-items:center}}.step-number{{font-weight:800;color:var(--teal)}}.status{{font-size:11px;color:var(--muted);background:#edf2f5;border-radius:20px;padding:4px 8px}}.step h3{{font-size:16px;margin:13px 0 5px}}.step p{{min-height:40px}}.step form{{margin-top:12px}}.result pre{{white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;margin:8px 0 0}}.notice{{padding:13px;border:1px solid #edd6aa;background:#fff7e8;color:#634819;border-radius:8px;font-size:13px;margin-bottom:18px}}
       @media(max-width:760px){{.grid{{grid-template-columns:1fr 1fr}}}}@media(max-width:520px){{.grid,.form-row{{grid-template-columns:1fr}}.profile{{align-items:flex-start;flex-direction:column}}}}
-      </style></head><body><header><div class="eyebrow">INTELLIGENT SYSTEMS SERVICES · ASSIGNMENT DEMO</div><h1>Campaign Analytics Workspace</h1><p>From business question to SQL analysis, response model, AI insight and report</p></header><main>
-      <div class="notice"><b>Prototype scope:</b> workspace onboarding and selectable response/conversion goals are implemented for synthetic SMS campaigns. Other business datasets still need their own data adapters and analysis configuration.</div>
+      </style></head><body><header><div class="eyebrow">INTELLIGENT SYSTEMS SERVICES · ASSIGNMENT DEMO</div><h1>Business Analytics Workspace</h1><p>From business question to SQL analysis, machine learning, AI insight and report</p></header><main>
+      <div class="notice"><b>Prototype scope:</b> choose SMS campaign performance or subscription retention. Each scenario has its own synthetic data, SQL analysis, prediction model, Snwolley prompt, and dashboard. Loading arbitrary external datasets and production access controls remain future extensions.</div>
       {workspace_form}{workspace_card}{result_section}{brief_section}
       <section class="card"><div class="eyebrow">ASSIGNMENT SECTIONS</div><h2>Jump to the evidence you need</h2>
       <p class="muted">Open the dashboard directly at the results for assignment Parts 4 and 5.</p>
@@ -179,12 +204,16 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(403, page("Request rejected: refresh the page and try again."))
             return
         if self.path == "/workspace":
+            use_case = fields.get("use_case", ["campaigns"])[0]
+            if use_case not in {"campaigns", "retention"}:
+                use_case = "campaigns"
             workspace = {
                 "business_name": fields.get("business_name", [""])[0].strip()[:80],
                 "industry": fields.get("industry", [""])[0].strip()[:60],
                 "owner": fields.get("owner", [""])[0].strip()[:60],
                 "business_question": fields.get("business_question", [""])[0].strip()[:180],
-                "implemented_use_case": "sms_campaign_response",
+                "use_case": use_case,
+                "implemented_use_case": "subscription_retention" if use_case == "retention" else "sms_campaign_analytics",
                 "model_target": fields.get("model_target", ["responded"])[0]
                 if fields.get("model_target", ["responded"])[0] in {"responded", "converted"}
                 else "responded",
@@ -194,12 +223,25 @@ class Handler(BaseHTTPRequestHandler):
                 return
             OUTPUT_DIR.mkdir(exist_ok=True)
             WORKSPACE_PATH.write_text(json.dumps(workspace, indent=2), encoding="utf-8")
+            save_progress({key: False for key in PIPELINE})
+            for filename in ("model_report.json", "scored_messages.csv", "scored_accounts.csv",
+                             "dashboard.html"):
+                try:
+                    (OUTPUT_DIR / filename).unlink()
+                except FileNotFoundError:
+                    pass
             self.redirect_home("Workspace created. You can now run the analysis workflow.")
             return
         if self.path == "/reset-workspace":
             for path in (WORKSPACE_PATH, PROGRESS_PATH):
                 try:
                     path.unlink()
+                except FileNotFoundError:
+                    pass
+            for filename in ("model_report.json", "scored_messages.csv", "scored_accounts.csv",
+                             "dashboard.html"):
+                try:
+                    (OUTPUT_DIR / filename).unlink()
                 except FileNotFoundError:
                     pass
             self.redirect_home("Workspace cleared. Enter the updated workspace details.")
@@ -219,8 +261,14 @@ class Handler(BaseHTTPRequestHandler):
             title, script, _ = PIPELINE[action]
             try:
                 command = [sys.executable, str(ROOT / script)]
-                if action == "model":
-                    model_target = load_workspace().get("model_target", "responded")
+                selected_workspace = load_workspace()
+                selected_case = selected_workspace.get("use_case", "campaigns")
+                if action == "sql":
+                    command.extend(("--use-case", selected_case))
+                if action == "model" and selected_case == "retention":
+                    command = [sys.executable, str(ROOT / "retention_model.py")]
+                elif action == "model":
+                    model_target = selected_workspace.get("model_target", "responded")
                     if model_target not in {"responded", "converted"}:
                         model_target = "responded"
                     command.extend(("--target", model_target))

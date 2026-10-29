@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import argparse
 from pathlib import Path
 
 
@@ -28,15 +29,16 @@ def sql_statements(source: str):
         raise ValueError(f"Incomplete SQL statement at end of {QUERIES_PATH.name}")
 
 
-def run_queries() -> None:
+def run_queries(use_case: str = "campaigns") -> None:
     if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
         raise FileNotFoundError(
             f"{DB_PATH.name} is missing or empty. Run data.py first to generate the database."
         )
 
+    query_path = QUERIES_PATH if use_case == "campaigns" else ROOT / "retention_analysis.sql"
     with sqlite3.connect(DB_PATH) as connection:
         for number, statement in enumerate(
-            sql_statements(QUERIES_PATH.read_text(encoding="utf-8")), start=1
+            sql_statements(query_path.read_text(encoding="utf-8")), start=1
         ):
             cursor = connection.execute(statement)
             if cursor.description is None:
@@ -53,4 +55,6 @@ def run_queries() -> None:
 
 
 if __name__ == "__main__":
-    run_queries()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--use-case", choices=("campaigns", "retention"), default="campaigns")
+    run_queries(parser.parse_args().use_case)

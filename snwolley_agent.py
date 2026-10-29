@@ -14,7 +14,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dashboard import load_dashboard_data
+from dashboard import load_dashboard_data, load_retention_dashboard_data
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = ROOT / "outputs"
@@ -92,6 +92,45 @@ def build_prompt(data: dict) -> str:
     )
 
 
+def build_retention_prompt(data: dict) -> str:
+    """Construct an aggregate-only brief for the subscription retention scenario."""
+    totals = data["totals"]
+    model = data.get("model") or {}
+    metrics = model.get("test_metrics", {})
+    context = {
+        "business_context": "Synthetic subscription customer-retention analytics.",
+        "data_scope": {"subscription_records": totals["accounts"],
+                       "churned_accounts": totals["churned"],
+                       "overall_churn_rate": round(totals["churn_rate"] or 0, 4)},
+        "segment_results": [{"segment": row["segment"], "accounts": row["accounts"],
+                             "churned": row["churned"],
+                             "churn_rate": round(row["churn_rate"] or 0, 4)}
+                            for row in data["segments"]],
+        "plan_results": [{"plan_type": row["plan_type"], "accounts": row["accounts"],
+                          "churned": row["churned"],
+                          "churn_rate": round(row["churn_rate"] or 0, 4)}
+                         for row in data["plans"]],
+        "monthly_results": [{"month": row["month"], "accounts": row["accounts"],
+                             "churn_rate": round(row["churn_rate"] or 0, 4)}
+                            for row in data["monthly"]],
+        "held_out_model_results": {"model": model.get("model", "not run"),
+                                   "target": model.get("prediction_target", "churn"),
+                                   "records": metrics.get("records"),
+                                   "roc_auc": metrics.get("roc_auc"),
+                                   "precision": metrics.get("precision"),
+                                   "recall": metrics.get("recall"),
+                                   "f1": metrics.get("f1_score")},
+    }
+    return (
+        "You are a business intelligence assistant. Use only the supplied aggregate figures. "
+        "Write three specific observations, up to three practical next steps, and one limitation. "
+        "Tie observations to numbers. Do not claim correlation proves cause, do not recommend "
+        "automated customer decisions, and clearly call out weak model performance if ROC AUC "
+        "is near 0.5. The data is synthetic.\n\nANALYTICS CONTEXT:\n"
+        + json.dumps(context, indent=2, ensure_ascii=False)
+    )
+
+
 def extract_answer(response: dict) -> str:
     """Handle common chat-completion and direct-text response envelopes."""
     choices = response.get("choices")
@@ -163,15 +202,35 @@ def main() -> int:
         print("API key missing. Copy .env.example to .env and add the testing key from the assignment PDF.")
         return 2
     try:
-        answer = request_insights(build_prompt(load_dashboard_data()), api_key)
+        workspace_path = OUTPUT_DIR / "workspace.json"
+        workspace = json.loads(workspace_path.read_text(encoding="utf-8")) if workspace_path.exists() else {}
+        if workspace.get("use_case") == "retention":
+            source = load_retention_dashboard_data()
+            prompt = build_retention_prompt(source)
+            use_case = "retention"
+        else:
+            source = load_dashboard_data()
+            prompt = build_prompt(source)
+            use_case = "campaigns"
+        answer = request_insights(prompt, api_key)
     except (FileNotFoundError, RuntimeError, ValueError, json.JSONDecodeError) as error:
         print(f"Snwolley insight generation failed: {error}")
         return 1
     OUTPUT_DIR.mkdir(exist_ok=True)
+    (OUTPUT_DIR / "ai_insights_use_case.txt").write_text(use_case, encoding="utf-8")
+    (OUTPUT_DIR / f"ai_insights_{use_case}.txt").write_text(answer.strip() + "\n", encoding="utf-8")
     DISPLAY_PATH.write_text(answer.strip() + "\n", encoding="utf-8")
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     OUTPUT_PATH.write_text(
-        "# Snwolley Agent: campaign insight brief\n\n"
+        f"# Snwolley Agent: {use_case.replace('_', ' ')} insight brief\n\n"
+        f"Generated: {generated}\n\n"
+        "> AI-generated narrative based on synthetic aggregate results. "
+        "Review recommendations against the source metrics before acting.\n\n"
+        + answer.strip() + "\n",
+        encoding="utf-8",
+    )
+    (OUTPUT_DIR / f"ai_insights_{use_case}.md").write_text(
+        f"# Snwolley Agent: {use_case.replace('_', ' ')} insight brief\n\n"
         f"Generated: {generated}\n\n"
         "> AI-generated narrative based on synthetic aggregate results. "
         "Review recommendations against the source metrics before acting.\n\n"
