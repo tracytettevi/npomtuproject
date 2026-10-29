@@ -6,7 +6,7 @@ For the assignment mapping, model explanation, monitoring approach, Snwolley saf
 
 ## Run it from PyCharm
 
-Use the project's `.venv` interpreter. To open the workspace screen, right-click `app.py` in the Project panel and choose **Run**. Open `http://127.0.0.1:8000` in a browser, create a workspace, and run the workflow cards in order. Stop the app with Ctrl+C in PyCharm.
+Use the project's `.venv` interpreter. To open the workspace screen, right-click `app.py` in the Project panel and choose **Run**. Open `http://127.0.0.1:8000` in a browser, create a workspace, and run the workflow cards in order. Stop the app with Ctrl+C in PyCharm. If an older local server is still occupying port 8000, stop it or set the `PORT` environment variable to `8001` in the PyCharm run configuration.
 
 You can also run each Python file directly from the Project panel in this order:
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import secrets
 import subprocess
 import sys
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = ROOT / "outputs"
 WORKSPACE_PATH = OUTPUT_DIR / "workspace.json"
 PROGRESS_PATH = OUTPUT_DIR / "workflow_progress.json"
-PORT = 8000
+PORT = int(os.environ.get("PORT", "8000"))
 CSRF_TOKEN = secrets.token_urlsafe(24)
 
 PIPELINE = {
