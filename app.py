@@ -171,7 +171,7 @@ def page(message: str = "") -> bytes:
       <a class="button-link" href="/dashboard#part-5">Open Part 5: Snwolley Insights</a></p></section>
       <h2>Step-by-step process</h2><p class="muted">Follow the numbered steps in order. Step 1 is creating the workspace. Then run Step 2, Generate Data; Step 3, SQL Analysis; Step 4, Train and Evaluate the Model; Step 5, Generate the Snwolley Brief; and Step 6, Build the Dashboard. Only the next step will be available until the current step completes.</p>
       <div class="grid">{''.join(actions)}</div><p style="margin-top:18px"><a href="/dashboard">Open the current dashboard</a></p>
-      <footer class="muted" style="margin-top:22px">This local demo is only available on this computer at 127.0.0.1:8000.</footer></main></body></html>"""
+      <footer class="muted" style="margin-top:22px">This local demo is only available on this computer at 127.0.0.1:{PORT}.</footer></main></body></html>"""
     return body.encode("utf-8")
 
 
